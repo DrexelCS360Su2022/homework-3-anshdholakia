@@ -23,6 +23,7 @@
         ((assignment? exp) (eval-assignment exp env))
         ((definition? exp) (eval-definition exp env))
         ((if? exp) (eval-if exp env))
+        ((let? exp) (eval-let (operands exp) env))
         ((lambda? exp)
          (make-procedure (lambda-parameters exp)
                          (lambda-body exp)
@@ -30,11 +31,75 @@
         ((begin? exp)
          (eval-sequence (begin-actions exp) env))
         ((cond? exp) (mceval (cond->if exp) env))
+        ((and? exp) (and (operands exp) env))
+        ((or? exp) (or (operands exp) env))
         ((application? exp)
          (mcapply (mceval (operator exp) env)
                   (list-of-values (operands exp) env)))
         (else
          (error "Unknown expression type -- EVAL" exp))))
+
+
+(define (parse-vars exp)
+  (if (null? exp)
+      '()
+      (cons (first-exp (first-exp exp)) (parse-vars (rest-exps exp)))
+  )
+)
+
+(define (parse-vals exp env)
+  (if (null? exp)
+      '()
+      (cons (mceval (first-exp (rest-exps (first-exp exp))) env) (parse-vals (rest-exps exp) env))
+  )
+)
+
+(define (give-environment exps env)
+  (if (assignment? exps)
+      (extend-environment (parse-vars (cons (operands exps) '())) (parse-vals (cons (operands exps) '()) env) env)
+  (extend-environment (parse-vars exps) (parse-vals exps env) env))
+)
+
+
+(define (eval-let exp env)
+  (if (null? (rest-exps exp))
+      (mceval (first-exp exp) env)
+      (eval-let (rest-exps exp) (give-environment (first-exp exp) env))
+  )  
+)
+
+(define (let? exp)
+  (tagged-list? exp 'let)
+)
+
+(define (and? exp)
+  (tagged-list? exp 'and)
+)
+
+(define (or? exp)
+  (tagged-list? exp 'or)
+)
+
+(define (and exps env)
+  (if (null? exps)
+    #t
+    (if (mceval (first-exp exps) env)
+      (if (null? (rest-exps exps))
+        (mceval (first-exp exps) env)
+        (mceval (cons 'and (rest-exps exps)) env)
+      )
+      #f
+    )  
+  ))
+
+(define (or exps env)
+  (if (null? exps)
+    #f
+    (if (mceval (first-exp exps) env)
+      #t
+      (or (rest-exps exps) env)
+    )  
+  ))
 
 (define (mcapply procedure arguments)
   (cond ((primitive-procedure? procedure)
@@ -305,8 +370,19 @@
         (list 'cdr cdr)
         (list 'cons cons)
         (list 'null? null?)
+        (list '+ +)
+        (list '- -)
+        (list '* *)
+        (list '/ /)
+        (list '< <)
+        (list '<= <=)
+        (list '= =)
+        (list '>= >=)
+        (list '> >)
+        (list 'error (lambda () (error "Metacircular Interpreter Aborted")))
 ;;      more primitives
         ))
+
 
 (define (primitive-procedure-names)
   (map car

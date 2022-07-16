@@ -30,6 +30,8 @@
                          env))
         ((begin? exp)
          (eval-sequence (begin-actions exp) env))
+        ((delay? exp) (mceval (delay->lambda exp) env))
+        ((force? exp) (mceval (operands exp) env))
         ((cond? exp) (mceval (cond->if exp) env))
         ((and? exp) (and (operands exp) env))
         ((or? exp) (or (operands exp) env))
@@ -39,6 +41,34 @@
         (else
          (error "Unknown expression type -- EVAL" exp))))
 
+
+(define (make-lambda parameters body)
+  (cons 'lambda (cons parameters body)))
+
+(define (delay->lambda exp) (make-lambda '() (operands exp)))
+
+(define (delay? exp)
+  (tagged-list? exp 'delay)
+)
+
+(define lis '())
+
+(define (check exp lis)
+  (if(null? lis)
+     #f
+     (if (equal? exp (first lis))
+         #t
+         (check exp (rest lis))
+     )
+ )
+)
+ 
+  
+
+
+(define (force? exp)
+  (tagged-list? exp 'force)
+)
 
 (define (parse-vars exp)
   (if (null? exp)
@@ -91,6 +121,8 @@
       #f
     )  
   ))
+
+
 
 (define (or exps env)
   (if (null? exps)
@@ -192,8 +224,7 @@
 (define (lambda-parameters exp) (cadr exp))
 (define (lambda-body exp) (cddr exp))
 
-(define (make-lambda parameters body)
-  (cons 'lambda (cons parameters body)))
+
 
 
 (define (if? exp) (tagged-list? exp 'if))
